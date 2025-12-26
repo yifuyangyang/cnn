@@ -3,7 +3,7 @@
  输入层：将28×28的MNIST图像展平为784维向量。
  隐藏层：两层全连接层，第一层为 nn.Linear(28*28, 512) ，第二层为 nn.Linear(512, 256) ，激活函数使用ReLU。
  输出层： nn.Linear(256, 10) ，对应MNIST的10个数字类别。
-2. SimpleCNN（卷积神经网络）
+2. CNN
  卷积层：两层卷积，第一层 nn.Conv2d(1, 16, kernel_size=3, padding=1) ，第二层 nn.Conv2d(16, 32, kernel_size=3, padding=1) ，均使用ReLU激活，搭配2×2的MaxPool2d池化。
  全连接层：第一层 nn.Linear(32*7*7, 256) ，输出层 nn.Linear(256, 10) 。
 
