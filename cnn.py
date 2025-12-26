@@ -222,8 +222,8 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32  # 改这里：8 / 16 / 32
+        c2_out = 64   # 改这里：16 / 32 / 64
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
