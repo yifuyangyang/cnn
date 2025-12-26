@@ -276,14 +276,14 @@ def main():
         batch_size=CONFIG["batch_size"],
         shuffle=True,
         num_workers=2,
-        pin_memory=True
+        pin_memory=False
     )
     test_loader = DataLoader(
         test_ds,
         batch_size=CONFIG["batch_size"],
         shuffle=False,
         num_workers=2,
-        pin_memory=True
+        pin_memory=False
     )
 
     # -------------------------
