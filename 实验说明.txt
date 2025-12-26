@@ -6,7 +6,7 @@
 2. 最终准确率：98.15%（≥98%）
 
 二、CNN（卷积神经网络）
-1. 网络结构（示例，可根据你的实际搭建修改）：
+1. 网络结构：
 （1） 卷积层1： nn.Conv2d(1, 32, kernel_size=3,  padding=1)  + ReLU 激活+nn.MaxPool2d(2)池化
 （2） 卷积层2：nn.Conv2d(32,64, kernel_size=3, padding=1)  + ReLU激活 + nn.MaxPool2d(2)池化
 （3） 全连接层：将卷积输出展平为128x7x7维向量，经nn.Linear(64x7×7, 256)  + ReLU激活，最后通过 nn.Linear(256, 10) 输出分类结果
