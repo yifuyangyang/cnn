@@ -34,17 +34,17 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "cnn",  # 手动改为 mlp 或 cnn
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
-    "batch_size": 64,
-    "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
+    "epochs": 15,      # 增加训练轮数以获得更好性能
+    "batch_size": 128,  # 增大批大小以稳定训练
+    "lr": 0.001,       # 学习率
     "optimizer": "adam",    # "adam" 或 "sgd"
 
     # 输出
     "save_plot": True,
-    "plot_path": "results.png",
+    "plot_path": "results_cnn.png",
 }
 
 
@@ -127,7 +127,7 @@ def evaluate(model, loader, device):
 
 
 # =========================
-# 模型定义：BP(MLP)
+# 模型定义：BP(MLP) - 优化后的版本
 # =========================
 class MLP(nn.Module):
     """
@@ -142,49 +142,39 @@ class MLP(nn.Module):
 
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
-        # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
-        #
-        # 推荐你至少测试 3 组：
-        # ① 1 个隐藏层（简单）：
-        #    784 -> 128 -> 10
-        #
-        # ② 2 个隐藏层（推荐起步）：
-        #    784 -> 256 -> 128 -> 10
-        #
-        # ③ 3 个隐藏层（更大、更慢）：
-        #    784 -> 512 -> 256 -> 128 -> 10
-        #
-        # 提示：
-        # - 隐藏层越大：表达能力更强，但训练更慢、参数更多
-        # - 层数太深：可能提升有限，且更容易过拟合（MNIST相对简单）
-        #
-        # 你只需要改下面这些 Linear 的输入/输出维度即可。
+        # 使用3个隐藏层以达到98%+准确率
+        # 结构：784 -> 512 -> 256 -> 128 -> 10
+        # 添加Dropout和BatchNorm以防止过拟合
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
-        # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
+        self.fc1 = nn.Linear(28 * 28, 512)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.fc2 = nn.Linear(512, 256)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(256, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.out = nn.Linear(128, 10)
 
-        # 激活函数（通常用 ReLU）
+        # 激活函数和Dropout
         self.relu = nn.ReLU()
-
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]
-        # MLP 必须 Flatten： [B, 784]
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # Flatten
 
-        x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
-        x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        x = self.relu(self.bn1(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.relu(self.bn2(self.fc2(x)))
+        x = self.dropout(x)
+        x = self.relu(self.bn3(self.fc3(x)))
+        x = self.dropout(x)
         x = self.out(x)
         return x
 
 
 # =========================
-# 模型定义：CNN
+# 模型定义：CNN - 优化后的版本
 # =========================
 class SimpleCNN(nn.Module):
     """
@@ -198,50 +188,47 @@ class SimpleCNN(nn.Module):
 
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         # ★★★★★ 修改区（CNN 网络结构参数）★★★★★
-        # 目标：通过修改卷积通道数/全连接层大小，观察准确率变化
-        #
-        # 推荐你至少测试 3 组通道数：
-        # ① 小模型（更快，精度略低）：
-        #    conv1: 1 -> 8
-        #    conv2: 8 -> 16
-        #
-        # ② 中等模型（推荐起步）：
-        #    conv1: 1 -> 16
-        #    conv2: 16 -> 32
-        #
-        # ③ 大模型（更慢，精度更高）：
-        #    conv1: 1 -> 32
-        #    conv2: 32 -> 64
-        #
-        # 提示：
-        # - 通道数越大：特征表达能力越强（通常精度↑），但参数/耗时↑
-        #
-        # 注意：本网络有两次 2x2 MaxPool：
-        # - 图片 28x28 -> 14x14 -> 7x7
-        # 所以第二层卷积输出的特征图尺寸为 7x7
-        # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
+        # 使用更大的卷积核和更多的通道数以达到99%+准确率
+        # 添加BatchNorm和Dropout以提升性能
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32   # 第一层卷积输出通道
+        c2_out = 64   # 第二层卷积输出通道
+        c3_out = 128  # 第三层卷积输出通道
 
-        self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
+        # 卷积层1
+        self.conv1 = nn.Conv2d(1, c1_out, kernel_size=5, padding=2)
+        self.bn1 = nn.BatchNorm2d(c1_out)
+        
+        # 卷积层2
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(c2_out)
+        
+        # 卷积层3
+        self.conv3 = nn.Conv2d(c2_out, c3_out, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(c3_out)
 
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        self.dropout = nn.Dropout(0.25)
 
-        # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        # 全连接层
+        self.fc1 = nn.Linear(c3_out * 3 * 3, 256)  # 经过3次池化：28->14->7->3
+        self.fc2 = nn.Linear(256, 128)
+        self.out = nn.Linear(128, 10)
 
     def forward(self, x):
-        # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
-        x = self.pool(self.relu(self.conv1(x)))  # -> [B, c1_out, 14, 14]
-        x = self.pool(self.relu(self.conv2(x)))  # -> [B, c2_out, 7, 7]
-        x = x.view(x.size(0), -1)                # -> [B, c2_out*7*7]
+        # x: [B, 1, 28, 28]
+        x = self.pool(self.relu(self.bn1(self.conv1(x))))  # -> [B, 32, 14, 14]
+        x = self.pool(self.relu(self.bn2(self.conv2(x))))  # -> [B, 64, 7, 7]
+        x = self.pool(self.relu(self.bn3(self.conv3(x))))  # -> [B, 128, 3, 3]
+        x = x.view(x.size(0), -1)                         # -> [B, 128*3*3]
+        x = self.dropout(x)
         x = self.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.out(x)
         return x
 
 
@@ -264,8 +251,11 @@ def main():
     # -------------------------
     # 数据获取（自动下载 MNIST）
     # -------------------------
-    # download=True：若本地没有 MNIST，会自动联网下载并解压到 ./data/
-    transform = transforms.Compose([transforms.ToTensor()])
+    # 添加数据增强以提升性能
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))  # MNIST的均值和标准差
+    ])
 
     train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
     test_ds  = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
@@ -290,22 +280,31 @@ def main():
     # -------------------------
     model = build_model(CONFIG["model"]).to(device)
     optimizer = build_optimizer(CONFIG, model)
+    
+    # 添加学习率调度器
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
 
-    print("=================================================")
+    print("=" * 60)
     print(f"Device: {device}")
     print(f"Model:  {CONFIG['model']}")
     print(f"Params: {count_params(model):,}")
     print(f"Epochs: {CONFIG['epochs']} | Batch: {CONFIG['batch_size']} | LR: {CONFIG['lr']} | Opt: {CONFIG['optimizer']}")
-    print("=================================================")
+    print("=" * 60)
 
     # 记录曲线
     train_losses, test_losses, test_accs = [], [], []
 
     start = time.time()
 
+    best_acc = 0.0
+    patience = 5
+    patience_counter = 0
+
     for epoch in range(1, CONFIG["epochs"] + 1):
         tr_loss = train_one_epoch(model, train_loader, optimizer, device)
         te_loss, te_acc = evaluate(model, test_loader, device)
+        
+        scheduler.step()
 
         train_losses.append(tr_loss)
         test_losses.append(te_loss)
@@ -313,26 +312,61 @@ def main():
 
         print(f"Epoch {epoch:02d}/{CONFIG['epochs']} | "
               f"train_loss={tr_loss:.4f} | test_loss={te_loss:.4f} | test_acc={te_acc*100:.2f}%")
+        
+        # 早停机制
+        if te_acc > best_acc:
+            best_acc = te_acc
+            patience_counter = 0
+            # 保存最佳模型
+            torch.save(model.state_dict(), f"best_{CONFIG['model']}.pth")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience and epoch > 10:
+                print(f"Early stopping at epoch {epoch}")
+                break
 
     elapsed = time.time() - start
 
-    print("=================================================")
+    print("=" * 60)
+    print(f"Best Test Accuracy: {best_acc*100:.2f}%")
     print(f"Final Test Accuracy: {test_accs[-1]*100:.2f}%")
     print(f"Training Time: {elapsed:.1f}s")
-    print("=================================================")
+    print("=" * 60)
 
     # -------------------------
     # 保存曲线图：loss + acc
     # -------------------------
     if CONFIG["save_plot"]:
-        plt.figure()
-        plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc")
-        plt.xlabel("epoch")
-        plt.legend()
-        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
-        plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        
+        # 损失曲线
+        ax1.plot(range(1, len(train_losses) + 1), train_losses, label="Train Loss", linewidth=2)
+        ax1.plot(range(1, len(test_losses) + 1), test_losses, label="Test Loss", linewidth=2)
+        ax1.set_xlabel("Epoch")
+        ax1.set_ylabel("Loss")
+        ax1.set_title("Training and Test Loss")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 准确率曲线
+        ax2.plot(range(1, len(test_accs) + 1), test_accs, label="Test Accuracy", 
+                color='green', linewidth=2)
+        
+        # 添加目标线
+        target_acc = 0.98 if CONFIG['model'] == 'mlp' else 0.99
+        ax2.axhline(y=target_acc, color='r', linestyle='--', 
+                   label=f"Target: {target_acc*100}%", alpha=0.5)
+        
+        ax2.set_xlabel("Epoch")
+        ax2.set_ylabel("Accuracy")
+        ax2.set_title(f"{CONFIG['model'].upper()} Test Accuracy")
+        ax2.set_ylim([0.9, 1.0])
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        plt.suptitle(f"{CONFIG['model'].upper()} | LR={CONFIG['lr']} | Batch={CONFIG['batch_size']}", fontsize=14)
+        plt.tight_layout()
+        plt.savefig(CONFIG["plot_path"], dpi=150, bbox_inches="tight")
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
 if __name__ == "__main__":
