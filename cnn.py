@@ -34,7 +34,7 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "cnn",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
     "epochs": 10,
@@ -161,10 +161,10 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
+        self.fc1 = nn.Linear(28 * 28, 784)   # 改这里：例如 128 / 256 / 512
+        self.fc2 = nn.Linear(784, 392)       # 改这里：例如 64 / 128 / 256
         # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
+        self.out = nn.Linear(392, 10)        # 最后一层输出固定 10 类（0~9）
 
         # 激活函数（通常用 ReLU）
         self.relu = nn.ReLU()
@@ -222,8 +222,8 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32   # 改这里：8 / 16 / 32
+        c2_out = 64   # 改这里：16 / 32 / 64
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
