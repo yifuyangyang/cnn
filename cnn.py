@@ -34,10 +34,10 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "cnn",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
+    "epochs": 15,
     "batch_size": 64,
     "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
     "optimizer": "adam",    # "adam" 或 "sgd"
