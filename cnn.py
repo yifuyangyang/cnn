@@ -1,17 +1,4 @@
-# bp_vs_cnn_mnist.py
-# ============================================================
-# 实验：BP(MLP) vs CNN 在 MNIST 上的对比
-# - MLP 需要 Flatten，会丢失空间结构
-# - CNN 利用卷积/共享/池化，更适合图像
-#
-# 运行方式：
-#   python bp_vs_cnn_mnist.py
-#
-# 必须改的地方：
-#   1) MLP 的隐藏层规模/层数（在 MLP.__init__ 的 ★★★★★ 区域）
-#   2) CNN 的卷积通道数/全连接层（在 SimpleCNN.__init__ 的 ★★★★★ 区域）
-# 可选改的地方：
-#   学习率、epoch、batch_size（在 CONFIG 区域）
+
 # ============================================================
 
 import time
@@ -27,20 +14,20 @@ import matplotlib.pyplot as plt
 
 
 # =========================
-# CONFIG（学生可改：训练参数）
+# CONFIG（优化后的训练参数）
 # =========================
 CONFIG = {
     # 固定随机种子：方便对比（同参数下结果更稳定）
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "mlp",  # 切换为"cnn"测试CNN效果
 
-    # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
-    "batch_size": 64,
-    "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
-    "optimizer": "adam",    # "adam" 或 "sgd"
+    # 训练相关参数（优化后）
+    "epochs": 20,    # 增加训练轮数，让模型充分收敛
+    "batch_size": 128,  # 增大batch_size，提升训练稳定性
+    "lr": 1e-3,             # MLP/CNN均使用1e-3（adam优化器效果更好）
+    "optimizer": "adam",    # adam优化器收敛更快，优于sgd
 
     # 输出
     "save_plot": True,
@@ -49,7 +36,7 @@ CONFIG = {
 
 
 # =========================
-# 工具函数
+# 工具函数（无修改）
 # =========================
 def set_seed(seed: int):
     """固定随机种子：让结果更可复现（便于公平对比）"""
@@ -127,7 +114,7 @@ def evaluate(model, loader, device):
 
 
 # =========================
-# 模型定义：BP(MLP)
+# 模型定义：BP(MLP)（优化后）
 # =========================
 class MLP(nn.Module):
     """
@@ -135,113 +122,91 @@ class MLP(nn.Module):
     - 输入：MNIST 图像 [B, 1, 28, 28]
     - 先 Flatten 成向量 [B, 784]
     - 再走全连接层做分类
+    优化点：
+    1. 增加隐藏层神经元数量+层数
+    2. 加入Dropout抑制过拟合
+    3. 加入BatchNorm1d加速收敛并稳定训练
     """
 
     def __init__(self):
         super().__init__()
 
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
-        # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
-        #
-        # 推荐你至少测试 3 组：
-        # ① 1 个隐藏层（简单）：
-        #    784 -> 128 -> 10
-        #
-        # ② 2 个隐藏层（推荐起步）：
-        #    784 -> 256 -> 128 -> 10
-        #
-        # ③ 3 个隐藏层（更大、更慢）：
-        #    784 -> 512 -> 256 -> 128 -> 10
-        #
-        # 提示：
-        # - 隐藏层越大：表达能力更强，但训练更慢、参数更多
-        # - 层数太深：可能提升有限，且更容易过拟合（MNIST相对简单）
-        #
-        # 你只需要改下面这些 Linear 的输入/输出维度即可。
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        # ★★★★★ 优化后的MLP结构 ★★★★★
+        # 784 -> 512 -> 256 -> 128 -> 10（3层隐藏层，提升容量）
+        self.fc1 = nn.Linear(28 * 28, 512)
+        self.bn1 = nn.BatchNorm1d(512)  # 批归一化
+        self.fc2 = nn.Linear(512, 256)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(256, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.out = nn.Linear(128, 10)
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
-        # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
-
-        # 激活函数（通常用 ReLU）
+        # 激活函数+正则化
         self.relu = nn.ReLU()
-
+        self.dropout = nn.Dropout(0.2)  # Dropout概率0.2（抑制过拟合）
 
     def forward(self, x):
-        # x: [B, 1, 28, 28]
-        # MLP 必须 Flatten： [B, 784]
+        # x: [B, 1, 28, 28] -> [B, 784]
         x = x.view(x.size(0), -1)
 
-        x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
-        x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        # 全连接+批归一化+激活+Dropout（顺序：Linear -> BN -> ReLU -> Dropout）
+        x = self.dropout(self.relu(self.bn1(self.fc1(x))))
+        x = self.dropout(self.relu(self.bn2(self.fc2(x))))
+        x = self.dropout(self.relu(self.bn3(self.fc3(x))))
         x = self.out(x)
+
         return x
 
 
 # =========================
-# 模型定义：CNN
+# 模型定义：CNN（优化后）
 # =========================
 class SimpleCNN(nn.Module):
     """
     卷积神经网络（CNN）
-    - 输入保持图像结构：[B, 1, 28, 28]
-    - 通过卷积提取局部特征（边缘、拐角、笔画组合）
+    优化点：
+    1. 增加卷积通道数（提升特征提取能力）
+    2. 加入BatchNorm2d加速收敛并稳定训练
+    3. 增加全连接层神经元数量
+    4. 加入Dropout抑制过拟合
     """
 
     def __init__(self):
         super().__init__()
 
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        # ★★★★★ 修改区（CNN 网络结构参数）★★★★★
-        # 目标：通过修改卷积通道数/全连接层大小，观察准确率变化
-        #
-        # 推荐你至少测试 3 组通道数：
-        # ① 小模型（更快，精度略低）：
-        #    conv1: 1 -> 8
-        #    conv2: 8 -> 16
-        #
-        # ② 中等模型（推荐起步）：
-        #    conv1: 1 -> 16
-        #    conv2: 16 -> 32
-        #
-        # ③ 大模型（更慢，精度更高）：
-        #    conv1: 1 -> 32
-        #    conv2: 32 -> 64
-        #
-        # 提示：
-        # - 通道数越大：特征表达能力越强（通常精度↑），但参数/耗时↑
-        #
-        # 注意：本网络有两次 2x2 MaxPool：
-        # - 图片 28x28 -> 14x14 -> 7x7
-        # 所以第二层卷积输出的特征图尺寸为 7x7
-        # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        # ★★★★★ 优化后的CNN通道数 ★★★★★
+        c1_out = 32   # 从16→32（提升卷积特征提取能力）
+        c2_out = 64   # 从32→64
+        c3_out = 128  # 新增第三层卷积（进一步提升特征提取）
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
-
+        # 卷积层（加入BatchNorm2d）
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(c1_out)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(c2_out)
+        self.conv3 = nn.Conv2d(c2_out, c3_out, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(c3_out)
 
+        # 池化+激活+正则化
         self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        self.pool = nn.MaxPool2d(2)  # 2x2池化，尺寸减半
+        self.dropout = nn.Dropout(0.2)  # Dropout抑制过拟合
 
-        # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        # 全连接层（计算特征图尺寸：28→14→7→3（三次池化后为3x3））
+        # 注意：三次卷积+池化后，尺寸从28→14→7→3（最后一次池化是3x3向下取整）
+        self.fc1 = nn.Linear(c3_out * 3 * 3, 256)  # 增加全连接层神经元数量
+        self.bn4 = nn.BatchNorm1d(256)
+        self.fc2 = nn.Linear(256, 10)
 
     def forward(self, x):
-        # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
-        x = self.pool(self.relu(self.conv1(x)))  # -> [B, c1_out, 14, 14]
-        x = self.pool(self.relu(self.conv2(x)))  # -> [B, c2_out, 7, 7]
-        x = x.view(x.size(0), -1)                # -> [B, c2_out*7*7]
-        x = self.relu(self.fc1(x))
+        # x: [B, 1, 28, 28]
+        x = self.pool(self.relu(self.bn1(self.conv1(x))))  # -> [B, 32, 14, 14]
+        x = self.pool(self.relu(self.bn2(self.conv2(x))))  # -> [B, 64, 7, 7]
+        x = self.pool(self.relu(self.bn3(self.conv3(x))))  # -> [B, 128, 3, 3]
+        x = x.view(x.size(0), -1)                          # -> [B, 128*3*3=1152]
+        x = self.dropout(self.relu(self.bn4(self.fc1(x)))) # 全连接+批归一化+激活+Dropout
         x = self.fc2(x)
+
         return x
 
 
@@ -255,20 +220,28 @@ def build_model(model_name: str) -> nn.Module:
 
 
 # =========================
-# 主程序
+# 主程序（优化数据加载+数据增强）
 # =========================
 def main():
     set_seed(CONFIG["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # -------------------------
-    # 数据获取（自动下载 MNIST）
+    # 数据获取（加入数据增强）
     # -------------------------
-    # download=True：若本地没有 MNIST，会自动联网下载并解压到 ./data/
-    transform = transforms.Compose([transforms.ToTensor()])
+    # 训练集：加入随机平移、旋转（数据增强，提升泛化能力）
+    train_transform = transforms.Compose([
+        transforms.RandomAffine(degrees=5, translate=(0.1, 0.1)),  # 随机旋转5度+平移10%
+        transforms.ToTensor(),
+    ])
+    # 测试集：仅归一化（不增强，保持测试真实性）
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+    ])
 
-    train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
-    test_ds  = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+    # download=True：若本地没有MNIST，会自动联网下载并解压到 ./data/
+    train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=train_transform)
+    test_ds  = datasets.MNIST(root="./data", train=False, download=True, transform=test_transform)
 
     train_loader = DataLoader(
         train_ds,
@@ -325,13 +298,15 @@ def main():
     # 保存曲线图：loss + acc
     # -------------------------
     if CONFIG["save_plot"]:
-        plt.figure()
-        plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc")
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss", marker="o")
+        plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss", marker="s")
+        plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc", marker="^")
         plt.xlabel("epoch")
+        plt.ylabel("value")
         plt.legend()
-        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
+        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']} | batch_size={CONFIG['batch_size']}")
+        plt.grid(True, alpha=0.3)
         plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
