@@ -37,7 +37,7 @@ CONFIG = {
     "model": "mlp",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
+    "epochs": 30,
     "batch_size": 64,
     "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
     "optimizer": "adam",    # "adam" 或 "sgd"
@@ -45,6 +45,7 @@ CONFIG = {
     # 输出
     "save_plot": True,
     "plot_path": "results.png",
+    "epochs": 30,
 }
 
 
@@ -161,10 +162,10 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
+        self.fc1 = nn.Linear(28 * 28, 512)   # 改这里：例如 128 / 256 / 512
+        self.fc2 = nn.Linear(512, 256)       # 改这里：例如 64 / 128 / 256
         # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
+        self.out = nn.Linear(256, 10)        # 最后一层输出固定 10 类（0~9）
 
         # 激活函数（通常用 ReLU）
         self.relu = nn.ReLU()
@@ -232,8 +233,8 @@ class SimpleCNN(nn.Module):
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
 
         # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        self.fc1 = nn.Linear(c2_out * 7 * 7, 256)  # 可以改 128 -> 256 试试
+        self.fc2 = nn.Linear(256, 10)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
@@ -333,6 +334,7 @@ def main():
         plt.legend()
         plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
         plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
+        plt.show()
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
 if __name__ == "__main__":
