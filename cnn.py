@@ -34,12 +34,12 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "cnn",  # 根据需要切换 "mlp" 或 "cnn"
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
-    "batch_size": 64,
-    "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
+    "epochs": 20,    # 增加训练轮数以达到更高准确率
+    "batch_size": 128,  # 增大批大小以加速训练
+    "lr": 1e-3,      # 学习率，可尝试 1e-2 / 1e-3 / 1e-4
     "optimizer": "adam",    # "adam" 或 "sgd"
 
     # 输出
@@ -142,7 +142,7 @@ class MLP(nn.Module):
 
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
-        # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
+        # 目标：通过修改隐藏层的"层数/每层神经元数"，观察准确率变化
         #
         # 推荐你至少测试 3 组：
         # ① 1 个隐藏层（简单）：
@@ -161,14 +161,13 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
-        # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
+        self.fc1 = nn.Linear(28 * 28, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.out = nn.Linear(128, 10)
 
-        # 激活函数（通常用 ReLU）
         self.relu = nn.ReLU()
-
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]
@@ -176,9 +175,11 @@ class MLP(nn.Module):
         x = x.view(x.size(0), -1)
 
         x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
+        x = self.dropout(x)  # 加入dropout
         x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        x = self.dropout(x)  # 加入dropout
+        x = self.relu(self.fc3(x))
+        x = self.dropout(x)  # 加入dropout
         x = self.out(x)
         return x
 
@@ -222,26 +223,45 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
-
+        c1_out = 32
+        c2_out = 64
+        
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(c1_out)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(c2_out)
+        
+        self.conv3 = nn.Conv2d(c2_out, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        
+        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(128)
 
         self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        self.pool = nn.MaxPool2d(2)
+        self.dropout2d = nn.Dropout2d(0.25)
 
-        # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        self.fc1 = nn.Linear(128 * 7 * 7, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.out = nn.Linear(256, 10)
+
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
-        x = self.pool(self.relu(self.conv1(x)))  # -> [B, c1_out, 14, 14]
-        x = self.pool(self.relu(self.conv2(x)))  # -> [B, c2_out, 7, 7]
-        x = x.view(x.size(0), -1)                # -> [B, c2_out*7*7]
+        x = self.pool(self.relu(self.bn1(self.conv1(x))))  # -> [B, c1_out, 14, 14]
+        x = self.dropout2d(x)
+        x = self.pool(self.relu(self.bn2(self.conv2(x))))  # -> [B, c2_out, 7, 7]
+        x = self.dropout2d(x)
+        x = self.relu(self.bn3(self.conv3(x)))  # -> [B, 128, 7, 7]
+        x = self.dropout2d(x)
+        x = self.relu(self.bn4(self.conv4(x)))  # -> [B, 128, 7, 7]
+        x = x.view(x.size(0), -1)                # -> [B, 128*7*7]
         x = self.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.out(x)
         return x
 
 
@@ -261,10 +281,6 @@ def main():
     set_seed(CONFIG["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # -------------------------
-    # 数据获取（自动下载 MNIST）
-    # -------------------------
-    # download=True：若本地没有 MNIST，会自动联网下载并解压到 ./data/
     transform = transforms.Compose([transforms.ToTensor()])
 
     train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
@@ -325,13 +341,15 @@ def main():
     # 保存曲线图：loss + acc
     # -------------------------
     if CONFIG["save_plot"]:
-        plt.figure()
+        plt.figure(figsize=(10, 6))
         plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss")
         plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss")
         plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc")
         plt.xlabel("epoch")
+        plt.ylabel("value")
         plt.legend()
-        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
+        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']} | epochs={CONFIG['epochs']}")
+        plt.grid(True)
         plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
