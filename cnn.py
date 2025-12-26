@@ -44,7 +44,7 @@ CONFIG = {
 
     # 输出
     "save_plot": True,
-    "plot_path": "results.png",
+    "plot_path": "results——cnn.png",
 }
 
 
