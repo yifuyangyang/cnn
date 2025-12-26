@@ -161,9 +161,10 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
+        self.fc1 = nn.Linear(28 * 28, 512)   # 改这里：例如 128 / 256 / 512
+        self.fc2 = nn.Linear(512, 128)       # 改这里：例如 64 / 128 / 256
         # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
+        #self.fc3 = nn.Linear(256, 128)
         self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
 
         # 激活函数（通常用 ReLU）
@@ -179,6 +180,7 @@ class MLP(nn.Module):
         # x = self.drop(x)  # 若启用 Dropout
         x = self.relu(self.fc2(x))
         # x = self.drop(x)
+        #x = self.relu(self.fc3(x))
         x = self.out(x)
         return x
 
@@ -206,8 +208,8 @@ class SimpleCNN(nn.Module):
         #    conv2: 8 -> 16
         #
         # ② 中等模型（推荐起步）：
-        #    conv1: 1 -> 16
-        #    conv2: 16 -> 32
+            #conv1: 1 -> 16
+            #conv2: 16 -> 32
         #
         # ③ 大模型（更慢，精度更高）：
         #    conv1: 1 -> 32
@@ -222,8 +224,8 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32   # 改这里：8 / 16 / 32
+        c2_out = 64   # 改这里：16 / 32 / 64
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
@@ -336,4 +338,6 @@ def main():
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
 if __name__ == "__main__":
+    #调整参数，使得MLP的精度到97.5%以上
+    #调整参数，是的CNN的精度到99%
     main()
