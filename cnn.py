@@ -34,13 +34,13 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
+    "model": "cnn",  # 根据需要切换为 "mlp" 或 "cnn"
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
-    "batch_size": 64,
-    "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
-    "optimizer": "adam",    # "adam" 或 "sgd"
+    "epochs": 20,      # 增加训练轮数以达到更高准确率
+    "batch_size": 128, # 增大批大小，提高训练效率
+    "lr": 1e-3,        # 建议对比：1e-2 / 1e-3 / 1e-4
+    "optimizer": "adam", # "adam" 或 "sgd"
 
     # 输出
     "save_plot": True,
@@ -142,7 +142,7 @@ class MLP(nn.Module):
 
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
-        # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
+        # 目标：通过修改隐藏层的"层数/每层神经元数"，观察准确率变化
         #
         # 推荐你至少测试 3 组：
         # ① 1 个隐藏层（简单）：
@@ -161,13 +161,17 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
-        # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
+        # 为达到98%以上准确率，使用更深的网络结构
+        self.fc1 = nn.Linear(28 * 28, 512)   # 增加神经元数量
+        self.fc2 = nn.Linear(512, 256)       # 增加神经元数量
+        self.fc3 = nn.Linear(256, 128)       # 添加第三个隐藏层
         self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
 
         # 激活函数（通常用 ReLU）
         self.relu = nn.ReLU()
+        
+        # 添加 Dropout 层防止过拟合
+        self.dropout = nn.Dropout(0.2)
 
 
     def forward(self, x):
@@ -176,9 +180,11 @@ class MLP(nn.Module):
         x = x.view(x.size(0), -1)
 
         x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
+        x = self.dropout(x)  # 添加dropout
         x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        x = self.dropout(x)  # 添加dropout
+        x = self.relu(self.fc3(x))
+        x = self.dropout(x)  # 添加dropout
         x = self.out(x)
         return x
 
@@ -222,26 +228,44 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        # 为达到99%以上准确率，使用更大的通道数
+        c1_out = 32   # 增加通道数：32
+        c2_out = 64   # 增加通道数：64
+
+        # 添加第三层卷积
+        c3_out = 128  # 添加第三层卷积，增加特征提取能力
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(c2_out, c3_out, kernel_size=3, padding=1)
 
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        
+        # 添加BatchNorm层提升训练效果
+        self.bn1 = nn.BatchNorm2d(c1_out)
+        self.bn2 = nn.BatchNorm2d(c2_out)
+        self.bn3 = nn.BatchNorm2d(c3_out)
 
-        # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        # 全连接层：输入是 c3_out * 7 * 7 (经过两次池化后变为7x7)
+        self.fc1 = nn.Linear(c3_out * 7 * 7, 256)  # 增加全连接层神经元数量
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 10)
+        
+        # 添加Dropout层防止过拟合
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
-        x = self.pool(self.relu(self.conv1(x)))  # -> [B, c1_out, 14, 14]
-        x = self.pool(self.relu(self.conv2(x)))  # -> [B, c2_out, 7, 7]
-        x = x.view(x.size(0), -1)                # -> [B, c2_out*7*7]
+        x = self.pool(self.relu(self.bn1(self.conv1(x))))  # -> [B, c1_out, 14, 14]
+        x = self.pool(self.relu(self.bn2(self.conv2(x))))  # -> [B, c2_out, 7, 7]
+        x = self.relu(self.bn3(self.conv3(x)))             # -> [B, c3_out, 7, 7]
+        x = x.view(x.size(0), -1)                          # -> [B, c3_out*7*7]
         x = self.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.fc3(x)
         return x
 
 
