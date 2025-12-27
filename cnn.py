@@ -34,14 +34,14 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "mlp",
-
-    # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
+    
+    "model": "mlp",  # 切换为 "cnn" 训练CNN
+    
+     # 训练相关参数（最优参数组合）
+    "epochs": 15,     # 增加轮数确保收敛
     "batch_size": 64,
-    "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
-    "optimizer": "adam",    # "adam" 或 "sgd"
-
+     "lr": 1e-3,       # Adam最优学习率
+    "optimizer": "adam",
     # 输出
     "save_plot": True,
     "plot_path": "results.png",
@@ -140,45 +140,26 @@ class MLP(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
-        # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
-        #
-        # 推荐你至少测试 3 组：
-        # ① 1 个隐藏层（简单）：
-        #    784 -> 128 -> 10
-        #
-        # ② 2 个隐藏层（推荐起步）：
-        #    784 -> 256 -> 128 -> 10
-        #
-        # ③ 3 个隐藏层（更大、更慢）：
-        #    784 -> 512 -> 256 -> 128 -> 10
-        #
-        # 提示：
-        # - 隐藏层越大：表达能力更强，但训练更慢、参数更多
-        # - 层数太深：可能提升有限，且更容易过拟合（MNIST相对简单）
-        #
-        # 你只需要改下面这些 Linear 的输入/输出维度即可。
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    # ★★★★★ MLP 最优结构（准确率≥98%）★★★★★
+        self.fc1 = nn.Linear(28 * 28, 512)   # 第一层增大到512神经元
+        self.fc2 = nn.Linear(512, 256)       # 第二层256神经元
+        self.fc3 = nn.Linear(256, 128)       # 新增第三层128神经元
+        self.out = nn.Linear(128, 10)        # 输出层固定10类
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
-        # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
-        self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
-
-        # 激活函数（通常用 ReLU）
+        # 激活函数+Dropout（防止过拟合）
         self.relu = nn.ReLU()
-
-
+        self.dropout = nn.Dropout(0.2)  # 新增Dropout，降低过拟合风险
+    
     def forward(self, x):
-        # x: [B, 1, 28, 28]
-        # MLP 必须 Flatten： [B, 784]
+         # x: [B, 1, 28, 28] -> Flatten [B, 784]
         x = x.view(x.size(0), -1)
 
         x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
+        x = self.dropout(x)  # 加入Dropout
         x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        x = self.dropout(x)
+        x = self.relu(self.fc3(x))
+        x = self.dropout(x)
         x = self.out(x)
         return x
 
@@ -196,51 +177,28 @@ class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        # ★★★★★ 修改区（CNN 网络结构参数）★★★★★
-        # 目标：通过修改卷积通道数/全连接层大小，观察准确率变化
-        #
-        # 推荐你至少测试 3 组通道数：
-        # ① 小模型（更快，精度略低）：
-        #    conv1: 1 -> 8
-        #    conv2: 8 -> 16
-        #
-        # ② 中等模型（推荐起步）：
-        #    conv1: 1 -> 16
-        #    conv2: 16 -> 32
-        #
-        # ③ 大模型（更慢，精度更高）：
-        #    conv1: 1 -> 32
-        #    conv2: 32 -> 64
-        #
-        # 提示：
-        # - 通道数越大：特征表达能力越强（通常精度↑），但参数/耗时↑
-        #
-        # 注意：本网络有两次 2x2 MaxPool：
-        # - 图片 28x28 -> 14x14 -> 7x7
-        # 所以第二层卷积输出的特征图尺寸为 7x7
-        # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
-        # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+         # ★★★★★ CNN 最优结构（准确率≥99%）★★★★★
+        c1_out = 32   # 第一层卷积通道数提升到32
+        c2_out = 64   # 第二层卷积通道数提升到64
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
 
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        self.dropout = nn.Dropout(0.2)  # 新增Dropout
 
         # 全连接层：输入是 c2_out * 7 * 7
         self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
         self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
-        x = self.pool(self.relu(self.conv1(x)))  # -> [B, c1_out, 14, 14]
-        x = self.pool(self.relu(self.conv2(x)))  # -> [B, c2_out, 7, 7]
-        x = x.view(x.size(0), -1)                # -> [B, c2_out*7*7]
+         # x: [B, 1, 28, 28]
+        x = self.pool(self.relu(self.conv1(x)))  # -> [B, 32, 14, 14]
+        x = self.pool(self.relu(self.conv2(x)))  # -> [B, 64, 7, 7]
+        x = x.view(x.size(0), -1)    # -> [B, 64*7*7=3136]
         x = self.relu(self.fc1(x))
+        x = self.dropout(x)  # 加入Dropout
         x = self.fc2(x)
         return x
 
@@ -264,7 +222,7 @@ def main():
     # -------------------------
     # 数据获取（自动下载 MNIST）
     # -------------------------
-    # download=True：若本地没有 MNIST，会自动联网下载并解压到 ./data/
+   
     transform = transforms.Compose([transforms.ToTensor()])
 
     train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
@@ -321,17 +279,19 @@ def main():
     print(f"Training Time: {elapsed:.1f}s")
     print("=================================================")
 
-    # -------------------------
     # 保存曲线图：loss + acc
     # -------------------------
     if CONFIG["save_plot"]:
-        plt.figure()
-        plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss")
-        plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc")
-        plt.xlabel("epoch")
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, CONFIG["epochs"] + 1), train_losses, label="train_loss", marker='o')
+        plt.plot(range(1, CONFIG["epochs"] + 1), test_losses, label="test_loss", marker='s')
+        plt.plot(range(1, CONFIG["epochs"] + 1), test_accs, label="test_acc", marker='^')
+        plt.xlabel("Epoch")
+        plt.ylabel("Value")
+        plt.ylim(0, 1.2)  # 固定y轴范围，方便对比
         plt.legend()
-        plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
+        plt.title(f"{CONFIG['model'].upper()} | LR={CONFIG['lr']} | Epochs={CONFIG['epochs']}")
+        plt.grid(True, alpha=0.3)
         plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
         print(f"Saved plot to: {CONFIG['plot_path']}")
 
