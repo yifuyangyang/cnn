@@ -34,7 +34,7 @@ CONFIG = {
     "seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
-    "model": "cnn",
+    "model": "mlp",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
     "epochs": 20,
