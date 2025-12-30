@@ -32,5 +32,6 @@ CNN 达到 ≥99% 准确率的运行结果截图
 （4）实验说明
 简要说明所采用的网络结构和最终准确率
 可写在 README.md 末尾或单独提交文档
-
+mlp : Final Test Accuracy: 98.05%
+cnn : Final Test Accuracy: 99.36%
 9.最终提交PR时，请将标题修改为：学号+姓名，1979801234张三
