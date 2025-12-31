@@ -37,14 +37,14 @@ CONFIG = {
     "model": "mlp",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
-    "epochs": 10,
-    "batch_size": 64,
+    "epochs": 25,
+    "batch_size": 128,
     "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
     "optimizer": "adam",    # "adam" 或 "sgd"
 
     # 输出
     "save_plot": True,
-    "plot_path": "results.png",
+    "plot_path": "mlp.png",
 }
 
 
@@ -161,12 +161,13 @@ class MLP(nn.Module):
         # 你只需要改下面这些 Linear 的输入/输出维度即可。
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        self.fc1 = nn.Linear(28 * 28, 256)   # 改这里：例如 128 / 256 / 512
-        self.fc2 = nn.Linear(256, 128)       # 改这里：例如 64 / 128 / 256
+        self.fc1 = nn.Linear(28 * 28, 512)   # 改这里：例如 128 / 256 / 512
+        self.fc2 = nn.Linear(512, 256)       # 改这里：例如 64 / 128 / 256
         # 如需增加第三个隐藏层，可新增 fc3，并把最后输出层改名
+        self.fc3=nn.Linear(256,128)
         self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
-
         # 激活函数（通常用 ReLU）
+        self.drop=nn.Dropout(0.3)
         self.relu = nn.ReLU()
 
 
@@ -176,9 +177,11 @@ class MLP(nn.Module):
         x = x.view(x.size(0), -1)
 
         x = self.relu(self.fc1(x))
-        # x = self.drop(x)  # 若启用 Dropout
+        x = self.drop(x)  # 若启用 Dropout
         x = self.relu(self.fc2(x))
-        # x = self.drop(x)
+        x = self.drop(x)
+        x = self.relu(self.fc3(x))
+        x = self.drop(x)
         x = self.out(x)
         return x
 
@@ -222,8 +225,8 @@ class SimpleCNN(nn.Module):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-        c1_out = 16   # 改这里：8 / 16 / 32
-        c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32   # 改这里：8 / 16 / 32
+        c2_out = 64   # 改这里：16 / 32 / 64
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
@@ -232,8 +235,9 @@ class SimpleCNN(nn.Module):
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
 
         # 全连接层：输入是 c2_out * 7 * 7
-        self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
-        self.fc2 = nn.Linear(128, 10)
+        self.fc1 = nn.Linear(c2_out * 7 * 7, 256)  # 可以改 128 -> 256 试试
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3=nn.Linear(128,10)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
