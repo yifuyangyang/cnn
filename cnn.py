@@ -1,3 +1,4 @@
+@@ -1,339 +1,90 @@
 # bp_vs_cnn_mnist.py
 # ============================================================
 # 实验：BP(MLP) vs CNN 在 MNIST 上的对比
@@ -32,13 +33,17 @@ import matplotlib.pyplot as plt
 CONFIG = {
     # 固定随机种子：方便对比（同参数下结果更稳定）
     "seed": 42,
+"seed": 42,
 
     # 选择要训练的模型： "mlp" 或 "cnn"
     "model": "mlp",
+    "model": "cnn",
 
     # 训练相关参数（可以改，用于观察收敛与精度变化）
     "epochs": 10,
     "batch_size": 64,
+    "epochs": 20,
+    "batch_size": 128,
     "lr": 1e-3,             # 建议对比：1e-2 / 1e-3 / 1e-4
     "optimizer": "adam",    # "adam" 或 "sgd"
 
@@ -133,6 +138,7 @@ class MLP(nn.Module):
     """
     BP 神经网络（多层感知机，MLP）
     - 输入：MNIST 图像 [B, 1, 28, 28]
+	@@ -136,50 +136,30 @@ class MLP(nn.Module):
     - 先 Flatten 成向量 [B, 784]
     - 再走全连接层做分类
     """
@@ -140,6 +146,7 @@ class MLP(nn.Module):
     def __init__(self):
         super().__init__()
 
+        
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         # ★★★★★ 修改区（MLP 网络结构参数）★★★★★
         # 目标：通过修改隐藏层的“层数/每层神经元数”，观察准确率变化
@@ -167,6 +174,14 @@ class MLP(nn.Module):
         self.out = nn.Linear(128, 10)        # 最后一层输出固定 10 类（0~9）
 
         # 激活函数（通常用 ReLU）
+        # 修改为 3 层隐藏层，增加模型容量
+        self.fc1 = nn.Linear(28 * 28, 512)   # 第一层：784 -> 512
+        self.fc2 = nn.Linear(512, 256)       # 第二层：512 -> 256
+        self.fc3 = nn.Linear(256, 128)       # 第三层：256 -> 128
+        self.out = nn.Linear(128, 10)        # 输出层：128 -> 10
+
+        # 添加 Dropout 防止过拟合
+        self.dropout = nn.Dropout(0.3)
         self.relu = nn.ReLU()
 
 
@@ -175,13 +190,18 @@ class MLP(nn.Module):
         # MLP 必须 Flatten： [B, 784]
         x = x.view(x.size(0), -1)
 
+        
         x = self.relu(self.fc1(x))
         # x = self.drop(x)  # 若启用 Dropout
+        x = self.dropout(x)  # 第一层后使用 Dropout
         x = self.relu(self.fc2(x))
         # x = self.drop(x)
         x = self.out(x)
         return x
 
+        x = self.dropout(x)  # 第二层后使用 Dropout
+        x = self.relu(self.fc3(x))
+        x = self.out(x)      # 最后一层不使用 Dropout
 
 # =========================
 # 模型定义：CNN
@@ -192,6 +212,7 @@ class SimpleCNN(nn.Module):
     - 输入保持图像结构：[B, 1, 28, 28]
     - 通过卷积提取局部特征（边缘、拐角、笔画组合）
     """
+        return x
 
     def __init__(self):
         super().__init__()
@@ -219,21 +240,33 @@ class SimpleCNN(nn.Module):
         # 注意：本网络有两次 2x2 MaxPool：
         # - 图片 28x28 -> 14x14 -> 7x7
         # 所以第二层卷积输出的特征图尺寸为 7x7
+	@@ -222,26 +202,49 @@ def __init__(self):
         # 全连接层输入维度要写成： (conv2_out_channels * 7 * 7)
         # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
         c1_out = 16   # 改这里：8 / 16 / 32
         c2_out = 32   # 改这里：16 / 32 / 64
+        c1_out = 32   # 第一层卷积：1 -> 32
+        c2_out = 64   # 第二层卷积：32 -> 64
+
+        # 添加第三个卷积层
+        c3_out = 128  # 第三层卷积：64 -> 128
 
         self.conv1 = nn.Conv2d(1, c1_out, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(c1_out, c2_out, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(c2_out, c3_out, kernel_size=3, padding=1)
 
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool2d(2)  # 2x2 池化，尺寸减半
+        self.pool = nn.MaxPool2d(2)
 
         # 全连接层：输入是 c2_out * 7 * 7
         self.fc1 = nn.Linear(c2_out * 7 * 7, 128)  # 可以改 128 -> 256 试试
         self.fc2 = nn.Linear(128, 10)
+        # 添加 BatchNorm 层，帮助训练稳定
+        self.bn1 = nn.BatchNorm2d(c1_out)
+        self.bn2 = nn.BatchNorm2d(c2_out)
+        self.bn3 = nn.BatchNorm2d(c3_out)
 
     def forward(self, x):
         # x: [B, 1, 28, 28]  (CNN 不需要 Flatten 输入)
@@ -269,6 +302,10 @@ def main():
 
     train_ds = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
     test_ds  = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+        # 注意：由于有3次池化，特征图尺寸：28x28 -> 14x14 -> 7x7 -> 3x3
+        # 所以全连接层输入维度 = c3_out * 3 * 3
+        self.fc1 = nn.Linear(c3_out * 3 * 3, 256)
+        self.fc2 = nn.Linear(256, 10)
 
     train_loader = DataLoader(
         train_ds,
@@ -284,6 +321,7 @@ def main():
         num_workers=2,
         pin_memory=True
     )
+        self.dropout = nn.Dropout(0.5)
 
     # -------------------------
     # 建模与优化器
@@ -310,16 +348,26 @@ def main():
         train_losses.append(tr_loss)
         test_losses.append(te_loss)
         test_accs.append(te_acc)
+    def forward(self, x):
+        # x: [B, 1, 28, 28]
+        x = self.relu(self.bn1(self.conv1(x)))  # -> [B, 32, 28, 28]
+        x = self.pool(x)                        # -> [B, 32, 14, 14]
 
         print(f"Epoch {epoch:02d}/{CONFIG['epochs']} | "
               f"train_loss={tr_loss:.4f} | test_loss={te_loss:.4f} | test_acc={te_acc*100:.2f}%")
+        x = self.relu(self.bn2(self.conv2(x)))  # -> [B, 64, 14, 14]
+        x = self.pool(x)                        # -> [B, 64, 7, 7]
 
     elapsed = time.time() - start
+        x = self.relu(self.bn3(self.conv3(x)))  # -> [B, 128, 7, 7]
+        x = self.pool(x)                        # -> [B, 128, 3, 3]
 
     print("=================================================")
     print(f"Final Test Accuracy: {test_accs[-1]*100:.2f}%")
     print(f"Training Time: {elapsed:.1f}s")
     print("=================================================")
+        x = x.view(x.size(0), -1)               # -> [B, 128*3*3=1152]
+        x = self.dropout(x)
 
     # -------------------------
     # 保存曲线图：loss + acc
@@ -334,6 +382,10 @@ def main():
         plt.title(f"{CONFIG['model']} | lr={CONFIG['lr']}")
         plt.savefig(CONFIG["plot_path"], dpi=160, bbox_inches="tight")
         print(f"Saved plot to: {CONFIG['plot_path']}")
+        x = self.relu(self.fc1(x))              # -> [B, 256]
+        x = self.dropout(x)
+        x = self.fc2(x)                         # -> [B, 10]
 
 if __name__ == "__main__":
     main()
+        return x
